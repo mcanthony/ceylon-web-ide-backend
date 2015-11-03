@@ -1,5 +1,9 @@
 //"use strict";
 
+if (document.domain != "localhost") {
+    document.domain = "ceylon-lang.org";
+}
+
 var clprinted = false;
 
 if (typeof String.prototype.startsWith != 'function') {
@@ -21,34 +25,26 @@ if (typeof String.prototype.endsWith != 'function') {
     };
 }
 
-var pagepath = window.location.pathname;
-if (!pagepath.endsWith("/")) {
-    var p = pagepath.lastIndexOf("/");
-    pagepath = pagepath.substring(0, p + 1);
-}
-
-var paths = {
-    "jquery" : pagepath + "scripts/jquery-1.11.1.min",
-    "github" : pagepath + "scripts/github"
-};
+var loc = window.parent.location;
+var repo = "http://" + loc.host + "/modules";
 
 var ceylonVersion = "1.2.0";
 var ceylonLang = "ceylon/language/" + ceylonVersion + "/ceylon.language-" + ceylonVersion;
-paths[ceylonLang] = pagepath + "scripts/modules/" + ceylonLang;
-paths[ceylonLang + "-model"] = pagepath + "scripts/modules/" + ceylonLang + "-model";
-
 var runnerVersion = "1.0.0";
 var runner = "com/redhat/ceylon/ide/client/runner/" + runnerVersion + "/com.redhat.ceylon.ide.client.runner-" + runnerVersion;
-paths[runner] = pagepath + "scripts/modules/" + runner;
-paths[runner + "-model"] = pagepath + "scripts/modules/" + runner + "-model";
+
+console.log(repo);
 
 require.config({
-    baseUrl: "http://modules.ceylon-lang.org/repo/1",
-    paths : paths,
+    baseUrl: "",
+    paths: {
+        com: repo + "/com",
+        ceylon: "http://modules.ceylon-lang.org/repo/1/ceylon"
+    },
     waitSeconds: 15
 });
 
-require([ceylonLang, runner, "github"],
+require([ceylonLang, runner],
     function(clang, runner) {
         console && console.log("ceylon.language module loaded");
         for (x in runner) {

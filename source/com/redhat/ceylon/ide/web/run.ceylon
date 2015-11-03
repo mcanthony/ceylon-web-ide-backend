@@ -14,22 +14,24 @@ import ceylon.net.http {
     post,
     get,
     contentType,
-    contentLength
+    contentLength,
+    Header
 }
 import ceylon.net.http.server {
     newServer,
     Endpoint,
     startsWith,
-    Request,
     AsynchronousEndpoint,
-    Response,
-    Matcher
+    isRoot
 }
 import ceylon.net.http.server.endpoints {
     serveStaticFile
 }
 import ceylon.time {
     now
+}
+import ceylon.file {
+    File
 }
 
 String ipVar = "OPENSHIFT_CEYLON_IP";
@@ -39,55 +41,44 @@ String dirVar = "OPENSHIFT_REPO_DIR";
 shared void run()
         => newServer {
     Endpoint {
-        path = startsWith("/translate");
+        startsWith("/translate");
         acceptMethod = { post };
-        service => translate;
+        service = translate;
     },
     Endpoint {
-        path = startsWith("/assist");
+        startsWith("/assist");
         acceptMethod = { post };
-        service => autocomplete;
+        service = autocomplete;
     },
     Endpoint {
-        path = startsWith("/hoverdoc");
+        startsWith("/hoverdoc");
+        acceptMethod = { post };
+        service = hover;
+    },
+    Endpoint {
+        startsWith("/githubauth");
         acceptMethod = { get };
-        service => examples;
+        service = authenticate;
     },
     Endpoint {
-        path = startsWith("/hoverdoc");
-        acceptMethod = { post };
-        service => hover;
-    },
-    Endpoint {
-        path = startsWith("/githubauth");
-        acceptMethod = { get };
-        service => authenticate;
-    },
-    Endpoint {
-        path = startsWith("/time");
+        startsWith("/time");
         acceptMethod = { get, post };
-        void service(Request request, Response response) {
+        (request, response) {
             value datetime = now().dateTime().string;
             response.addHeader(contentType("text/plain", utf8));
             response.addHeader(contentLength(datetime.size.string));
             response.writeString(datetime);
-        }
+        };
     },
     Endpoint {
-        object path extends Matcher() {
-            matches(String path) 
-                    => path in ["", "/", 
-                                "/index.html", 
-                                "/embedded.html"];
-            relativePath(String requestPath) => requestPath;
-        }
+        startsWith("/index.html").or(isRoot());
         acceptMethod = { get };
-        void service(Request request, Response response) {
+        (request, response) {
             response.addHeader(contentType("text/html", utf8));
             assert (exists resource 
                     = `module`.resourceByPath("index.html"));
             value embedded 
-                    = request.path.endsWith("embedded.html");
+                    = request.parameter("embedded") exists;
             value html 
                     = resource.textContent()
                     .replaceFirst("\`\`embedded\`\`", 
@@ -95,15 +86,19 @@ shared void run()
                     .replaceFirst("\`\`clientId\`\`", 
                                   clientId);
             response.writeString(html);
-        }
+        };
     },
     AsynchronousEndpoint {
-        path = startsWith("/");
+        startsWith("/");
         acceptMethod = { get };
-        service = serveStaticFile {
+        serveStaticFile {
             externalPath 
                     = (env(dirVar) else "") 
                     + "web-content";
+            headers(File file) => { 
+                Header("Cache-Control", 
+                    "max-age=0, must-revalidate") 
+            };
         };
     }
 }.start {

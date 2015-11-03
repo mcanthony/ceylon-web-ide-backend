@@ -1,5 +1,9 @@
 //"use strict";
 
+if (document.domain != "localhost") {
+    document.domain = "ceylon-lang.org";
+}
+
 var markers = [];
 
 var github;
@@ -166,53 +170,57 @@ $(document).ready(function() {
     $('#shareurl').hide();
     $('#gistlink').hide();
     $('#deletegist').hide();
-
-    if ("usrlow" in uriparams) {
-        // With "usrlow" set the user's gists will be shown
-        // at the bottom of the sidebar instead of the top
-        addExamplesContainer();
-        addUserGistsContainer();
-    } else {
-        addUserGistsContainer();
-        addExamplesContainer();
-    }
     
-    var noDefault = false;
-    if (uriparams.src != null) {
-        // Code is directly in URL
-        var code = decodeURIComponent(uriparams.src);
-        setTimeout(function() {
-            editSource(code);
-        }, 1);
-        noDefault = true;
-    } else if (uriparams.sample != null) {
-        // Retrieve code from the given sample id
-        editExample("ex", uriparams.sample);
-        noDefault = true;
-    } else if (uriparams.gist != null) {
-        // Retrieve code from the given sample id
-        editGist(uriparams.gist);
-        noDefault = true;
-    } else {
-        if (uriparams.set == null) {
-            window.outputReady = function() {
-                window.outputReady = null;
-                startSpinner();
-            	runCode('print("Ceylon ``language.version`` \\"``language.versionName``\\"");');
-                stopSpinner();
-            };
+    if (!embedded) {
+    
+        if ("usrlow" in uriparams) {
+            // With "usrlow" set the user's gists will be shown
+            // at the bottom of the sidebar instead of the top
+            addExamplesContainer();
+            addUserGistsContainer();
+        } else {
+            addUserGistsContainer();
+            addExamplesContainer();
         }
-    }
+        
+        var noDefault = false;
+        if (uriparams.src != null) {
+            // Code is directly in URL
+            var code = decodeURIComponent(uriparams.src);
+            setTimeout(function() {
+                editSource(code);
+            }, 1);
+            noDefault = true;
+        } else if (uriparams.sample != null) {
+            // Retrieve code from the given sample id
+            editExample("ex", uriparams.sample);
+            noDefault = true;
+        } else if (uriparams.gist != null) {
+            // Retrieve code from the given sample id
+            editGist(uriparams.gist);
+            noDefault = true;
+        } else {
+            if (uriparams.set == null) {
+                window.outputReady = function() {
+                    window.outputReady = null;
+                    startSpinner();
+                	runCode('print("Ceylon ``language.version`` \\"``language.versionName``\\"");');
+                    stopSpinner();
+                };
+            }
+        }
+        
+        if (uriparams.set != null) {
+            handleSelectSet(uriparams.set, noDefault);
+        } else {
+            // This is the default set of examples stored in our
+            // special "ceylonwebide" GitHub account
+            handleSelectSet("6e03a3db46854ff825e9", noDefault);
+        }
+        
+        listUserGists();
     
-    if (uriparams.set != null) {
-        handleSelectSet(uriparams.set, noDefault);
-    } else {
-        // This is the default set of examples stored in our
-        // special "ceylonwebide" GitHub account
-        handleSelectSet("6e03a3db46854ff825e9", noDefault);
     }
-    
-    listUserGists();
     
     setupLiveTypechecker();
 });
@@ -313,8 +321,8 @@ function handleResizeMain(event, data) {
     } else if (newwidth >= toolbarMinimalSize) {
         buttonShow("share", !embedded);
         buttonShow("advanced", !embedded);
-        buttonShow("dark", !embedded);
-        buttonShow("help", !embedded);
+        buttonShow("dark", true);
+        buttonShow("help", true);
         buttonShow("connect", !isGitHubConnected() && !embedded);
         buttonShow("connected", isGitHubConnected() && !embedded);
     }
@@ -362,8 +370,8 @@ function getToolbarItems() {
         { type: 'break',  id: 'break1', hidden: embedded },
         { type: 'button',  id: 'advanced', caption: 'Advanced', hint: 'Enable more complex code constructs', icon: 'fa fa-square-o', checkicon: 'fa fa-check-square-o', uncheckicon: 'fa fa-square-o', hidden: embedded },
         { type: 'spacer' },
-        { type: 'button',  id: 'dark', caption: 'Dark', hint: 'Switch theme', icon: 'fa fa-square', checkicon: 'fa fa-check-square', uncheckicon: 'fa fa-square', hidden: embedded },
-        { type: 'button',  id: 'help', caption: 'Help', hint: 'Help on how this Web IDE works', icon: 'fa fa-question', hidden: embedded },
+        { type: 'button',  id: 'dark', caption: 'Dark', hint: 'Switch theme', icon: 'fa fa-square', checkicon: 'fa fa-check-square', uncheckicon: 'fa fa-square', hidden: false },
+        { type: 'button',  id: 'help', caption: 'Help', hint: 'Help on how this Web IDE works', icon: 'fa fa-question', hidden: false },
         { type: 'button',  id: 'connect', caption: 'Connect', hint: 'Connect to GitHub', icon: 'fa fa-github', hidden: isGitHubConnected() || embedded },
         { type: 'menu',   id: 'connected', caption: 'Connected', hint: 'Connected to GitHub', icon: 'fa fa-github', hidden: !isGitHubConnected() || embedded,
             items: [
@@ -1469,10 +1477,10 @@ function showErrors(errors, print) {
 }
 
 function loadModuleAsString(src, func) {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    if (outputwin.loadModuleAsString) {
+    var load = safeOutputRef("loadModuleAsString");
+    if (load) {
         startSpinner();
-        outputwin.loadModuleAsString(src, function() {
+        load(src, function() {
                 func();
                 stopSpinner();
             }, function(when, err) {
@@ -1514,9 +1522,9 @@ function afterTranslate() {
 }
 
 function executeCode() {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    if (outputwin.run) {
-        outputwin.run();
+    var run = safeOutputRef("run");
+    if (run) {
+        run();
     } else {
         printError("Entry point 'run()' not found!")
         printError("When advanced mode is active your code should contain a method like:");
@@ -1626,7 +1634,6 @@ function editGist(key) {
 // Sets the code for the editor(s) from the given object
 function setEditorSourcesFromGist(files) {
     fileDeleted = false;
-    clearOutput();
     deleteEditors();
     var cnt = 0;
     var hasModule = false;
@@ -2129,6 +2136,7 @@ function isWrappedModule(code) {
 function doReset() {
     clearOutput();
     clearEditMarkers();
+    focusSelectedEditor();
 }
 
 // Clears all error markers and hover docs.
@@ -2151,77 +2159,80 @@ function resetOutput(onReady) {
         window.outputReady = null;
         onReady();
     }
-    $("#outputframe")[0].contentWindow.location.reload();
+    var loc = safeOutputRef("location");
+    if (loc) {
+        loc.reload();
+    }
+}
+
+function safeOutputRef(memberName) {
+    try {
+        var outputwin = $("#outputframe")[0].contentWindow;
+        return outputwin[memberName];
+    } catch(e) {
+        // Catch and ignore domain errors
+        return null;
+    }
 }
 
 function clearLangModOutputState() {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    var clear = outputwin.clearLangModOutputState;
+    var clear = safeOutputRef("clearLangModOutputState");
     if (clear) {
         clear();
     }
 }
 
 function hasLangModOutput() {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    var hasOutput = outputwin.hasLangModOutput;
+    var hasOutput = safeOutputRef("hasLangModOutput");
     if (hasOutput) {
         return hasOutput();
     }
 }
 
 function clearOutput() {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    var clear = outputwin.clearOutput;
+    var clear = safeOutputRef("clearOutput");
     if (clear) {
         clear();
     }
-    focusSelectedEditor();
 }
 
 function printOutputLine(txt) {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    var print = outputwin.printOutputLine;
+    var print = safeOutputRef("printOutputLine");
     if (print) {
         print(txt);
     }
 }
 
 function printOutput(txt) {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    var print = outputwin.printOutput;
+    var print = safeOutputRef("printOutput");
     if (print) {
         print(txt);
     }
 }
 
 function printSystem(txt, loc) {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    var print = outputwin.printSystem;
+    var print = safeOutputRef("printSystem");
     if (print) {
         print(txt, loc);
     }
 }
 
 function printError(txt, loc) {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    var print = outputwin.printError;
+    var print = safeOutputRef("printError");
     if (print) {
         print(txt, loc);
     }
 }
 
 function printWarning(txt, loc) {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    var print = outputwin.printWarning;
+    var print = safeOutputRef("printWarning");
     if (print) {
         print(txt, loc);
     }
 }
 
 function scrollOutput() {
-    var outputwin = $("#outputframe")[0].contentWindow;
-    var scroll = outputwin.scrollOutput;
+    var scroll = safeOutputRef("scrollOutput");
     if (scroll) {
         scroll();
     }
